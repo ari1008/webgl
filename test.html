@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>three.js - pointerlock controls</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link type="text/css" rel="stylesheet" href="main.css">
+	<style>
+		#blocker {
+			position: absolute;
+			width: 100%;
+			height: 100%;
+			background-color: rgba(0, 0, 0, 0.5);
+		}
+
+		#instructions {
+			width: 100%;
+			height: 100%;
+
+			display: -webkit-box;
+			display: -moz-box;
+			display: box;
+
+			-webkit-box-orient: horizontal;
+			-moz-box-orient: horizontal;
+			box-orient: horizontal;
+
+			-webkit-box-pack: center;
+			-moz-box-pack: center;
+			box-pack: center;
+
+			-webkit-box-align: center;
+			-moz-box-align: center;
+			box-align: center;
+
+			color: #ffffff;
+			text-align: center;
+			font-family: Arial;
+			font-size: 14px;
+			line-height: 24px;
+
+			cursor: pointer;
+		}
+	</style>
+</head>
+<body>
+<div id="container"></div>
+<div id="blocker">
+
+	<div id="instructions">
+		<span style="font-size:36px">Click to play</span>
+		<br/><br/>
+		Move: WASD<br/>
+		Jump: SPACE<br/>
+		Look: MOUSE
+	</div>
+
+</div>
+
+
+<script type="module">
+
+	import * as THREE from '../build/three.module.js';
+	import {OrbitControls} from './jsm/controls/OrbitControls.js';
+	import {GUI} from './jsm/libs/dat.gui.module.js';
+	import {GLTFLoader} from './jsm/loaders/GLTFLoader.js';
+	import {PointerLockControls} from './jsm/controls/PointerLockControls.js';
+	import Stats from './jsm/libs/stats.module.js';
+
+	let container;
+	var camera, scene, renderer, controls, boxPlan, gui;
+	var stats;
+
+	var spotLight;
+
+
+
+	const objects = [];
+
+	let raycaster;
+
+	let moveForward = false;
+	let moveBackward = false;
+	let moveLeft = false;
+	let moveRight = false;
+	let canJump = false;
+	var UseE = false;
+	var fogPourcent=0.0000;
+
+	let prevTime = performance.now();
+	const velocity = new THREE.Vector3();
+	const direction = new THREE.Vector3();
+	const vertex = new THREE.Vector3();
+	const color = new THREE.Color();
+
+	function createStats() {
+		var stats = new Stats();
+		stats.setMode(0);
+
+		stats.domElement.style.position = 'absolute';
+		stats.domElement.style.left = '0';
+		stats.domElement.style.top = '0';
+
+		return stats;
+	}
+
+	// function Wolf
+	function wolf(x,z){
+		const loader = new GLTFLoader();
+		loader.load(
+				// resource URL
+				'wolf/scene.gltf',
+				// called when the resource is loaded
+				function (gltf) {
+					var wolf = gltf.scene;
+					scene.add(wolf);
+
+					wolf.animations; // Array<THREE.AnimationClip>
+					wolf.scene; // THREE.Group
+					wolf.scenes; // Array<THREE.Group>
+					wolf.cameras; // Array<THREE.Camera>
+					wolf.asset; // Object
+					wolf.scale.set(30, 30, 30);
+					wolf.position.y = 0;
+					wolf.position.x = x;
+					wolf.position.z = z;
+					wolf.receiveShadow = true;
+					wolf.castShadow = true;
+
+				},
+				// called while loading is progressing
+				function (xhr) {
+
+					console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+
+				},
+				// called when loading has errors
+				function (error) {
+
+					console.log('An error happened');
+
+				}
+
+
+		);
+	}
+	//tree
+	function  tree(x, z){
+		const loader = new GLTFLoader();
+		loader.load(
+				// resource URL
+				'tree/scene.gltf',
+				// called when the resource is loaded
+				function (gltf) {
+					var tree = gltf.scene;
+					scene.add(tree);
+
+					tree.animations; // Array<THREE.AnimationClip>
+					tree.scene; // THREE.Group
+					tree.scenes; // Array<THREE.Group>
+					tree.cameras; // Array<THREE.Camera>
+					tree.asset; // Object
+					tree.scale.set(0.1, 0.1, 0.1);
+					tree.position.y = -10;
+					tree.position.x = x;
+					tree.position.z = z;
+					tree.receiveShadow = true;
+					tree.castShadow = true;
+
+				},
+				// called while loading is progressing
+				function (xhr) {
+
+					console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+
+				},
+				// called when loading has errors
+				function (error) {
+
+					console.log('An error happened');
+
+				}
+
+
+		);
+	}
+
+	function init() {
+		stats = createStats();
+		document.body.appendChild(stats.domElement);
+        //création de la caméra
+		camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+		camera.position.y = 0;
+		camera.position.x = 100;
+
+
+		scene = new THREE.Scene();
+		scene.background = new THREE.Color(0xcccccc);
+		scene.fog = new THREE.FogExp2(0xcccccc,fogPourcent)
+		const light = new THREE.HemisphereLight(0xeeeeff, 0x777788, 0.75);
+		light.position.set(0.5, 1, 0.75);
+		scene.add(light);
+		//type ambiance: essai retire
+		const ambient = new THREE.AmbientLight( 0xffffff, 0.1 );
+		scene.add( ambient );
+
+		spotLight = new THREE.PointLight( 0xffee88, 1, 100, 2 );
+		spotLight = new THREE.SpotLight( 0xffffff, 1 );
+		spotLight.position.set( 600, 650, 700 );
+		spotLight.angle = Math.PI / 4;
+		spotLight.penumbra = 0.1;
+		spotLight.decay = 1;
+		spotLight.distance = 3000;
+
+		spotLight.castShadow = true;
+		spotLight.shadow.mapSize.width = 512;
+		spotLight.shadow.mapSize.height = 512;
+		spotLight.shadow.camera.near = 10;
+		spotLight.shadow.camera.far = 2000;
+		spotLight.shadow.focus = 1;
+		scene.add( spotLight );
+
+
+		controls = new PointerLockControls(camera, document.body);
+
+		const blocker = document.getElementById('blocker');
+		const instructions = document.getElementById('instructions');
+
+		instructions.addEventListener('click', function () {
+
+			controls.lock();
+
+		}, false);
+
+		controls.addEventListener('lock', function () {
+
+			instructions.style.display = 'none';
+			blocker.style.display = 'none';
+
+		});
+
+		controls.addEventListener('unlock', function () {
+
+			blocker.style.display = 'block';
+			instructions.style.display = '';
+
+		});
+
+		scene.add(controls.getObject());
+
+		const onKeyDown = function (event) {
+
+			switch (event.keyCode) {
+
+				case 38: // up
+				case 87: // w
+					moveForward = true;
+					break;
+
+				case 37: // left
+				case 65: // a
+					moveLeft = true;
+					break;
+
+				case 40: // down
+				case 83: // sthree.js-master/
+				case 39: // right
+				case 68: // d
+					moveRight = true;
+					break;
+
+				case 32: // space
+					if (canJump === true) velocity.y += 350;
+					canJump = false;
+					break;
+
+				case 69: //e
+					UseE = true;
+					break;
+
+			}
+
+		};
+
+		const onKeyUp = function (event) {
+
+			switch (event.keyCode) {
+
+				case 38: // up
+				case 87: // w
+					moveForward = false;
+					break;
+
+				case 37: // left
+				case 65: // a
+					moveLeft = false;
+					break;
+
+				case 40: // down
+				case 83: // s
+					moveBackward = false;
+					break;
+
+				case 39: // right
+				case 68: // d
+					moveRight = false;
+					break;
+
+				case 69: //e
+					UseE = false;
+					break;
+
+			}
+
+		};
+
+		document.addEventListener('keydown', onKeyDown, false);
+		document.addEventListener('keyup', onKeyUp, false);
+
+		raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0), 0, 10);
+
+		// sol
+
+		let floorGeometry = new THREE.PlaneBufferGeometry( 1, 2000, 100, 100 );
+		floorGeometry.rotateX( - Math.PI / 2 );
+
+		//FOREST
+		//Sapin
+
+		for (var i = 0; i < 50; i++) {
+
+			do {
+				var treex = Math.random() * 1600 - 1000;
+				var treez =  Math.random() * 1600- 1000;
+				//condition pour laisser centre sans sapin pour le chateau
+
+			} while (treex < 100 && treex > -100 && treez < 100 && treez > -200)
+
+			tree(treex,treez);
+		}
+		//castle
+		// Instantiate a loader
+		const loader = new GLTFLoader();
+
+		// Load a glTF resourcelight
+		loader.load(
+				// resource URL
+				'castle/scene.gltf',
+				// called when the resource is loaded
+				function (gltf) {
+					var castle = gltf.scene;
+					scene.add(castle);
+
+					castle.animations; // Array<THREE.AnimationClip>
+					castle.scene; // THREE.Group
+					castle.scenes; // Array<THREE.Group>
+					castle.cameras; // Array<THREE.Camera>
+					castle.asset; // Object
+					castle.scale.set(10, 10, 10);
+					castle.position.y = 140;
+					castle.position.x = 0;
+					castle.castShadow = true;
+					castle.receiveShadow = true;
+
+				},
+				// called while loading is progressing
+				function (xhr) {
+
+					console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+
+				},
+				// called when loading has errors
+				function (error) {
+
+					console.log('An error happened');
+
+				}
+		);
+
+		//Door the castle
+
+		const texture = new THREE.TextureLoader().load( 'textures/crate.gif' );
+		var geometry1 = new THREE.PlaneGeometry(17, 23, 1),
+				material1 = new THREE.MeshBasicMaterial({map: texture, side: THREE.DoubleSide}),
+				door = new THREE.Mesh(geometry1, material1);
+		door.rotation.y = Math.PI / 2;
+		door.position.y= 1;
+		door.position.x = -25;
+		door.position.z = -80;
+		door.castShadow = true;
+		door.receiveShadow = true;
+		scene.add( door );
+
+		//ground
+
+		const grass = new THREE.TextureLoader().load("textures/terrain/grasslight-big.jpg");
+		grass.wrapS = THREE.RepeatWrapping;
+		grass.wrapT = THREE.RepeatWrapping;
+		grass.repeat.set(25, 25);
+		var geometry = new THREE.PlaneGeometry(2000, 2000, 1, 1);
+		var material = new THREE.MeshBasicMaterial({texture: grass, side: THREE.DoubleSide});
+		var material = new THREE.MeshLambertMaterial({map: grass, side: THREE.DoubleSide});
+		var ground = new THREE.Mesh(geometry, material);
+		// Rotate the place to ground level
+		ground.rotation.x = Math.PI / 2;
+		ground.position.y = -10;
+		ground.castShadow = true;
+		ground.receiveShadow = true;
+		scene.add(ground);
+
+		//wolf
+		wolf(-50,-100);
+
+		// sound
+		//create an AudioListener and add it to the camera
+		var listener = new THREE.AudioListener();
+		camera.add(listener);
+
+		// create a global audio source
+		var sound = new THREE.Audio(listener);
+
+		// load a sound and set it as the Audio object's buffer
+		var audioLoader = new THREE.AudioLoader();
+		audioLoader.load('/three.js-master//examples/sounds/ForestSong.mp3', function (buffer) {
+			sound.setBuffer(buffer);
+			sound.setLoop(true);
+			sound.setVolume(0.5);
+			sound.play();
+		});
+
+		//light
+
+		//ambient.castShadow = true;
+		//scene.add(ambient);
+
+		/*const spotlight = new THREE.SpotLight( 0xffffff );
+		spotlight.castShadow = true; // default false
+		scene.add( spotlight );*/
+
+
+
+
+		renderer = new THREE.WebGLRenderer({antialias: true});
+		renderer.setPixelRatio(window.devicePixelRatio);
+		renderer.setSize(window.innerWidth, window.innerHeight)
+		document.body.appendChild(renderer.domElement);
+		renderer.shadowMap.enabled = true; //rajout de l'ombre
+		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+		renderer.outputEncoding = THREE.sRGBEncoding;
+
+
+		window.addEventListener('resize', onWindowResize, false);
+
+	}
+
+
+	function onWindowResize() {
+
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+
+		renderer.setSize(window.innerWidth, window.innerHeight);
+
+	}
+
+	/*function buildGui() {
+
+		gui = new GUI();
+		const params = {
+			'light color': spotLight.color.getHex(),
+			intensity: spotLight.intensity,
+			distance: spotLight.distance,
+			angle: spotLight.angle,
+			penumbra: spotLight.penumbra,
+			decay: spotLight.decay,
+			focus: spotLight.shadow.focus
+		};
+
+		gui.addColor( params, 'light color' ).onChange( function ( val ) {
+
+			spotLight.color.setHex( val );
+
+		} );
+
+		gui.add( params, 'intensity', 0, 2 ).onChange( function ( val ) {
+
+			spotLight.intensity = val;
+
+		} );
+
+
+
+		gui.add( params, 'angle', 0, Math.PI / 3 ).onChange( function ( val ) {
+
+			spotLight.angle = val;
+
+		} );
+
+		gui.add( params, 'penumbra', 0, 1 ).onChange( function ( val ) {
+
+			spotLight.penumbra = val;
+
+		} );
+
+		gui.add( params, 'decay', 1, 2 ).onChange( function ( val ) {
+
+			spotLight.decay = val;
+
+		} );
+
+		gui.add( params, 'focus', 0, 1 ).onChange( function ( val ) {
+
+			spotLight.shadow.focus = val;
+
+		} );
+
+		gui.open();
+
+	}*/
+
+	function animate() {
+
+		requestAnimationFrame(animate);
+
+		const time = performance.now();
+
+		if (controls.isLocked === true) {
+
+			raycaster.ray.origin.copy(controls.getObject().position);
+			raycaster.ray.origin.y -= 10;
+
+			const intersections = raycaster.intersectObjects(objects);
+
+			const onObject = intersections.length > 0;
+
+			const delta = (time - prevTime) / 1000;
+
+			velocity.x -= velocity.x * 10.0 * delta;
+			velocity.z -= velocity.z * 10.0 * delta;
+
+			velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+
+			direction.z = Number(moveForward) - Number(moveBackward);
+			direction.x = Number(moveRight) - Number(moveLeft);
+			direction.normalize(); // this ensures consistent movements in all directions
+
+			if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
+			if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
+
+			if (onObject === true) {
+
+				velocity.y = Math.max(0, velocity.y);
+				canJump = true;
+
+			}
+			if (UseE == true) {
+				if (Math.pow((-25) - camera.position.x, 2) < 200 && Math.pow((-80) - camera.position.z, 2) < 200) {
+					console.log("ok");
+					//Wolf
+					wolf(-50,-120);
+				}
+				}
+
+			controls.moveRight(-velocity.x * delta);
+			controls.moveForward(-velocity.z * delta);
+
+			controls.getObject().position.y += (velocity.y * delta); // new behavior
+
+			if (controls.getObject().position.y < 10) {
+
+				velocity.y = 0;
+				controls.getObject().position.y = 10;
+
+				canJump = true;
+
+			}
+
+		}
+
+		prevTime = time;
+		renderer.render(scene, camera);
+		stats.update();
+
+	}
+
+
+
+
+	init();
+	animate();
+	//buildGUI();
+	render();
+
+</script>
+</body>
+</html>
