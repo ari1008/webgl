@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>three.js - pointerlock controls</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link type="text/css" rel="stylesheet" href="../../main.css">
+	<style>
+		#blocker {
+			position: absolute;
+			width: 100%;
+			height: 100%;
+			background-color: rgba(0,0,0,0.5);
+		}
+
+		#instructions {
+			width: 100%;
+			height: 100%;
+
+			display: -webkit-box;
+			display: -moz-box;
+			display: box;
+
+			-webkit-box-orient: horizontal;
+			-moz-box-orient: horizontal;
+			box-orient: horizontal;
+
+			-webkit-box-pack: center;
+			-moz-box-pack: center;
+			box-pack: center;
+
+			-webkit-box-align: center;
+			-moz-box-align: center;
+			box-align: center;
+
+			color: #ffffff;
+			text-align: center;
+			font-family: Arial;
+			font-size: 14px;
+			line-height: 24px;
+
+			cursor: pointer;
+		}
+	</style>
+</head>
+<body>
+<div id="blocker">
+
+	<div id="instructions">
+		<span style="font-size:36px">Click to play</span>
+		<br /><br />
+		Move: WASD<br/>
+		Jump: SPACE<br/>
+		Look: MOUSE
+	</div>
+
+</div>
+
+<script type="module">
+
+	import * as THREE from '../../../build/three.module.js';
+	//object
+	import { ColladaLoader } from '../../jsm/loaders/ColladaLoader.js';
+	import {GLTFLoader} from '../../jsm/loaders/GLTFLoader.js';
+	//Pointer control
+	import { PointerLockControls } from '../../jsm/controls/PointerLockControls.js';
+
+
+	let camera, scene, renderer, controls, clock ,mixer;
+
+	const objects = [];
+
+	let raycaster;
+
+	let moveForward = false;
+	let moveBackward = false;
+	let moveLeft = false;
+	let moveRight = false;
+	let canJump = false;
+
+	let prevTime = performance.now();
+	const velocity = new THREE.Vector3();
+	const direction = new THREE.Vector3();
+	const vertex = new THREE.Vector3();
+	const color = new THREE.Color();
+
+	clock = new THREE.Clock();
+
+	init();
+	animate();
+
+	function init() {
+
+		const manager = new THREE.LoadingManager();
+		manager.onStart = function ( url, itemsLoaded, itemsTotal ) {
+
+			console.log( 'Started loading file: ' + url + '.\nLoaded ' + itemsLoaded + ' of ' + itemsTotal + ' files.' );
+
+		};
+
+		manager.onLoad = function ( ) {
+
+			console.log( 'Loading complete!');
+
+		};
+
+
+		manager.onProgress = function ( url, itemsLoaded, itemsTotal ) {
+
+			console.log( 'Loading file: ' + url + '.\nLoaded ' + itemsLoaded + ' of ' + itemsTotal + ' files.' );
+
+		};
+
+		manager.onError = function ( url ) {
+
+			console.log( 'There was an error loading ' + url );
+
+		};
+
+		// collada ninja
+
+		const loader = new ColladaLoader(manager);
+		loader.load( 'Object/ninja/ninja.dae', function ( collada ) {
+
+			const avatar = collada.scene;
+			const animations = collada.animations;
+
+			avatar.traverse( function ( node ) {
+
+				if ( node.isSkinnedMesh ) {
+
+					node.frustumCulled = false;
+
+				}
+
+			} );
+
+			mixer = new THREE.AnimationMixer( avatar );
+
+			const action = mixer.clipAction( animations[ 0 ] );
+			action.play();
+
+			var scale = 0.08;
+			avatar.scale.set(scale,scale,scale);
+			avatar.position.z = -20;
+			scene.add( avatar );
+
+		} );
+
+		//gltf temple
+
+		// Instantiate a loader
+		const loadertemple = new GLTFLoader(manager);
+
+		// Load a glTF resource
+		loadertemple.load(
+				// resource URL
+				'Object/templeJap/scene.gltf',
+				// called when the resource is loaded
+				function ( gltf ) {
+					var temple = gltf.scene
+					scene.add( temple );
+
+					gltf.animations; // Array<THREE.AnimationClip>
+					gltf.scene; // THREE.Group
+					gltf.scenes; // Array<THREE.Group>
+					gltf.cameras; // Array<THREE.Camera>
+					gltf.asset; // Object
+					temple.position.z = -320;
+					temple.position.y = -5;
+					var scale = 0.15;
+					temple.scale.set(scale,scale,scale);
+
+				});
+
+		//
+		//gltf hous1
+
+		// Instantiate a loader
+		const loaderHouse1 = new GLTFLoader(manager);
+
+		// Load a glTF resource
+		loaderHouse1.load(
+				// resource URL
+				'Object/asianHouse1/scene.gltf',
+				// called when the resource is loaded
+				function ( gltf ) {
+					var house1 = gltf.scene
+					scene.add( house1 );
+
+					gltf.animations; // Array<THREE.AnimationClip>
+					gltf.scene; // THREE.Group
+					gltf.scenes; // Array<THREE.Group>
+					gltf.cameras; // Array<THREE.Camera>
+					gltf.asset; // Object
+					house1.position.z = -150;
+					house1.position.x = -100;
+					//house1.rotateY(-0)
+					var scale = 7;
+					house1.scale.set(scale,scale,scale);
+
+				});
+
+		//
+		//gltf hous2
+
+		// Instantiate a loader
+		const loaderHouse2 = new GLTFLoader(manager);
+
+		// Load a glTF resource
+		loaderHouse2.load(
+				// resource URL
+				'Object/asianHouse1/scene.gltf',
+				// called when the resource is loaded
+				function ( gltf ) {
+					var house2 = gltf.scene
+					scene.add( house2 );
+
+					gltf.animations; // Array<THREE.AnimationClip>
+					gltf.scene; // THREE.Group
+					gltf.scenes; // Array<THREE.Group>
+					gltf.cameras; // Array<THREE.Camera>
+					gltf.asset; // Object
+					house2.position.z = -90;
+					house2.position.x = 150;
+					house2.rotateY(-85)
+					var scale = 7;
+					house2.scale.set(scale,scale,scale);
+
+				});
+
+		//
+		//gltf small house1
+
+		// Instantiate a loader
+		const loaderSHouse1 = new GLTFLoader(manager);
+
+		// Load a glTF resource
+		loaderSHouse1.load(
+				// resource URL
+				'Object/smallHouse/scene.gltf',
+				// called when the resource is loaded
+				function ( gltf ) {
+					var shouse1 = gltf.scene
+					scene.add( shouse1 );
+
+					gltf.animations; // Array<THREE.AnimationClip>
+					gltf.scene; // THREE.Group
+					gltf.scenes; // Array<THREE.Group>
+					gltf.cameras; // Array<THREE.Camera>
+					gltf.asset; // Object
+					shouse1.position.z = -10;
+					shouse1.position.x = 150;
+					shouse1.rotateY(85)
+					var scale = 2;
+					shouse1.scale.set(scale,scale,scale);
+
+				});
+
+		//
+
+		//gltf bell
+
+		// Instantiate a loader
+		const loaderBell = new GLTFLoader(manager);
+
+		// Load a glTF resource
+		loaderBell.load(
+				// resource URL
+				'Object/chineseBell/scene.gltf',
+				// called when the resource is loaded
+				function ( gltf ) {
+					var bell = gltf.scene
+					scene.add( bell );
+
+					gltf.animations; // Array<THREE.AnimationClip>
+					gltf.scene; // THREE.Group
+					gltf.scenes; // Array<THREE.Group>
+					gltf.cameras; // Array<THREE.Camera>
+					gltf.asset; // Object
+					bell.position.z = -150;
+
+					bell.rotateY(-85)
+					var scale = 4;
+					bell.scale.set(scale,scale,scale);
+
+				});
+
+		//
+
+		camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1000 );
+		camera.position.y = 10;
+
+		scene = new THREE.Scene();
+		scene.background = new THREE.Color( 0xffffff );
+		scene.fog = new THREE.Fog( 0xffffff, 0, 750 );
+
+		const light = new THREE.HemisphereLight( 0xeeeeff, 0x777788, 0.75 );
+		light.position.set( 0.5, 1, 0.75 );
+		scene.add( light );
+
+		controls = new PointerLockControls( camera, document.body );
+
+		const blocker = document.getElementById( 'blocker' );
+		const instructions = document.getElementById( 'instructions' );
+
+		instructions.addEventListener( 'click', function () {
+
+			controls.lock();
+
+		}, false );
+
+		controls.addEventListener( 'lock', function () {
+
+			instructions.style.display = 'none';
+			blocker.style.display = 'none';
+
+		} );
+
+		controls.addEventListener( 'unlock', function () {
+
+			blocker.style.display = 'block';
+			instructions.style.display = '';
+
+		} );
+
+		scene.add( controls.getObject() );
+
+		const onKeyDown = function ( event ) {
+
+			switch ( event.keyCode ) {
+
+				case 38: // up
+				case 87: // w
+					moveForward = true;
+					break;
+
+				case 37: // left
+				case 65: // a
+					moveLeft = true;
+					break;
+
+				case 40: // down
+				case 83: // s
+					moveBackward = true;
+					break;
+
+				case 39: // right
+				case 68: // d
+					moveRight = true;
+					break;
+
+				case 32: // space
+					if ( canJump === true ) velocity.y += 350;
+					canJump = false;
+					break;
+
+			}
+
+		};
+
+		const onKeyUp = function ( event ) {
+
+			switch ( event.keyCode ) {
+
+				case 38: // up
+				case 87: // w
+					moveForward = false;
+					break;
+
+				case 37: // left
+				case 65: // a
+					moveLeft = false;
+					break;
+
+				case 40: // down
+				case 83: // s
+					moveBackward = false;
+					break;
+
+				case 39: // right
+				case 68: // d
+					moveRight = false;
+					break;
+
+			}
+
+		};
+
+		document.addEventListener( 'keydown', onKeyDown, false );
+		document.addEventListener( 'keyup', onKeyUp, false );
+
+		raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+
+		//Floor
+
+		const grass = new THREE.TextureLoader().load("../../textures/terrain/grasslight-big.jpg");
+		grass.wrapS = THREE.RepeatWrapping;
+		grass.wrapT = THREE.RepeatWrapping;
+		grass.repeat.set(25, 25);
+		var geometry = new THREE.PlaneGeometry(2000, 2000, 1, 1);
+		var material = new THREE.MeshBasicMaterial({texture: grass, side: THREE.DoubleSide});
+		var material = new THREE.MeshLambertMaterial({map: grass, side: THREE.DoubleSide});
+		var ground = new THREE.Mesh(geometry, material);
+		// Rotate the place to ground level
+		ground.rotation.x = Math.PI / 2;
+		ground.position.y = -10;
+		ground.castShadow = true;
+		ground.receiveShadow = true;
+		scene.add(ground);
+
+
+		//
+		//Sound
+
+		// create an AudioListener and add it to the camera
+		const listener = new THREE.AudioListener();
+		camera.add( listener );
+
+		// create a global audio source
+		const sound = new THREE.Audio( listener );
+
+		// load a sound and set it as the Audio object's buffer
+		const audioLoader = new THREE.AudioLoader();
+		audioLoader.load( 'Sound/asiaSound.mp3', function( buffer ) {
+			sound.setBuffer( buffer );
+			sound.setLoop(true);
+			sound.setVolume(0.5);
+			sound.play();
+		});
+
+
+		//
+
+		renderer = new THREE.WebGLRenderer( { antialias: true } );
+		renderer.setPixelRatio( window.devicePixelRatio );
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		document.body.appendChild( renderer.domElement );
+
+		//
+
+		window.addEventListener( 'resize', onWindowResize, false );
+
+	}
+
+	function onWindowResize() {
+
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+
+		renderer.setSize( window.innerWidth, window.innerHeight );
+
+	}
+
+	function animate() {
+
+		requestAnimationFrame( animate );
+
+		const time = performance.now();
+
+		if ( controls.isLocked === true ) {
+
+			raycaster.ray.origin.copy( controls.getObject().position );
+			raycaster.ray.origin.y -= 10;
+
+			const intersections = raycaster.intersectObjects( objects );
+
+			const onObject = intersections.length > 0;
+
+			const delta = ( time - prevTime ) / 1000;
+
+			velocity.x -= velocity.x * 40.0 * delta;
+			velocity.z -= velocity.z * 40.0 * delta;
+
+			velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+
+			direction.z = Number( moveForward ) - Number( moveBackward );
+			direction.x = Number( moveRight ) - Number( moveLeft );
+			direction.normalize(); // this ensures consistent movements in all directions
+
+			if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta;
+			if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta;
+
+			if ( onObject === true ) {
+
+				velocity.y = Math.max( 0, velocity.y );
+				canJump = true;
+
+			}
+
+			controls.moveRight( - velocity.x * delta );
+			controls.moveForward( - velocity.z * delta );
+
+			controls.getObject().position.y += ( velocity.y * delta ); // new behavior
+
+			if ( controls.getObject().position.y < 10 ) {
+
+				velocity.y = 0;
+				controls.getObject().position.y = 10;
+
+				canJump = true;
+
+			}
+
+		}
+
+		prevTime = time;
+
+		renderer.render( scene, camera );
+		render()
+
+	}
+	function render(){
+		const delta = clock.getDelta();
+
+		if ( mixer !== undefined ) {
+
+			mixer.update( delta );
+
+		}
+	}
+
+</script>
+</body>
+</html>
